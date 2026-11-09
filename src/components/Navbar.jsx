@@ -1,13 +1,15 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import gsap from 'gsap'
-import { Menu, X } from 'lucide-react'
+import { Menu, QrCode, X } from 'lucide-react'
 import { navLinks } from '../data/content'
 import { scrollToHash } from '../hooks/useLenis'
+import GuestQrModal from './GuestQrModal'
 
 export default function Navbar({ ready = true, solid = false }) {
   const navRef = useRef(null)
   const [open, setOpen] = useState(false)
+  const [qrOpen, setQrOpen] = useState(false)
   const [scrolled, setScrolled] = useState(false)
   const location = useLocation()
   const navigate = useNavigate()
@@ -92,7 +94,18 @@ export default function Navbar({ ready = true, solid = false }) {
             ))}
           </nav>
 
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-3 md:gap-4">
+            <button
+              type="button"
+              onClick={() => {
+                setOpen(false)
+                setQrOpen(true)
+              }}
+              className="hidden items-center gap-2 text-[11px] tracking-[0.22em] text-muted uppercase transition-colors hover:text-accent md:inline-flex"
+            >
+              <QrCode className="size-3.5" strokeWidth={1.75} />
+              Table QR
+            </button>
             <Link
               to="/manager"
               className="hidden text-[11px] tracking-[0.22em] text-muted uppercase transition-colors hover:text-accent md:inline"
@@ -141,8 +154,28 @@ export default function Navbar({ ready = true, solid = false }) {
               {link.label}
             </a>
           ))}
+          <button
+            type="button"
+            onClick={() => {
+              setOpen(false)
+              setQrOpen(true)
+            }}
+            className="serif flex items-center gap-3 text-left text-5xl tracking-tight text-ivory"
+          >
+            <QrCode className="size-8" strokeWidth={1.25} />
+            Table QR
+          </button>
+          <Link
+            to="/manager"
+            onClick={() => setOpen(false)}
+            className="serif text-3xl tracking-tight text-muted"
+          >
+            Manager
+          </Link>
         </div>
       </div>
+
+      <GuestQrModal open={qrOpen} onClose={() => setQrOpen(false)} defaultTableId="4" />
     </>
   )
 }
