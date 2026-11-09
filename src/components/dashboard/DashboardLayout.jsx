@@ -5,6 +5,8 @@ import {
   Bell,
   BookOpen,
   CalendarDays,
+  ChartColumn,
+  ChefHat,
   ChevronsLeft,
   ChevronsRight,
   LayoutDashboard,
@@ -26,6 +28,7 @@ const SIDEBAR_KEY = 'mn-manager-sidebar-collapsed'
 const icons = {
   LayoutDashboard,
   UtensilsCrossed,
+  ChartColumn,
   CalendarDays,
   BookOpen,
   Armchair,
@@ -36,6 +39,7 @@ const icons = {
 const titles = {
   '/manager': 'Overview',
   '/manager/orders': 'Orders',
+  '/manager/analytics': 'Analytics',
   '/manager/reservations': 'Reservations',
   '/manager/menu': 'Menu',
   '/manager/tables': 'Tables',
@@ -149,6 +153,17 @@ export default function DashboardLayout() {
         </nav>
 
         <div className={`border-t p-4 ${collapsed ? 'lg:p-2' : ''}`} style={{ borderColor: 'var(--dash-border)' }}>
+          <Link
+            to="/kitchen"
+            title="Kitchen display"
+            className={`dash-nav-link mb-1 flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm ${
+              collapsed ? 'lg:justify-center lg:gap-0 lg:px-0' : ''
+            }`}
+          >
+            <ChefHat className="size-[18px] shrink-0" strokeWidth={1.5} />
+            <span className={collapsed ? 'lg:hidden' : ''}>Kitchen</span>
+            <span className={`ml-auto text-[10px] dash-subtle ${collapsed ? 'lg:hidden' : ''}`}>↗</span>
+          </Link>
           <Link
             to="/waiter"
             title="Waiter app"

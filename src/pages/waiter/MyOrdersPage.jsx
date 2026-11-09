@@ -156,6 +156,7 @@ export default function MyOrdersPage() {
         onStatus={(s) => {
           if (selectedOrder) actions.setOrderStatus(selectedOrder.id, s)
         }}
+        onUpdate={(patch) => selectedOrder && actions.updateOrder(selectedOrder.id, patch)}
         onPrint={() =>
           selectedOrder &&
           printOrderReceipt(selectedOrder, { restaurant: state.settings, waiter })

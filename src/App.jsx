@@ -16,6 +16,8 @@ import MyOrdersPage from './pages/waiter/MyOrdersPage'
 import FloorPage from './pages/waiter/FloorPage'
 import GuestTablePage from './pages/guest/GuestTablePage'
 import GuestOrderConfirmPage from './pages/guest/GuestOrderConfirmPage'
+import KitchenDisplayPage from './pages/kitchen/KitchenDisplayPage'
+import AnalyticsPage from './pages/dashboard/AnalyticsPage'
 
 export default function App() {
   return (
@@ -26,9 +28,11 @@ export default function App() {
           <Route path="/menu" element={<MenuPage />} />
           <Route path="/t/:tableId" element={<GuestTablePage />} />
           <Route path="/t/:tableId/order/:orderId" element={<GuestOrderConfirmPage />} />
+          <Route path="/kitchen" element={<KitchenDisplayPage />} />
           <Route path="/manager" element={<DashboardLayout />}>
             <Route index element={<OverviewPage />} />
             <Route path="orders" element={<OrdersPage />} />
+            <Route path="analytics" element={<AnalyticsPage />} />
             <Route path="reservations" element={<ReservationsPage />} />
             <Route path="menu" element={<MenuManagerPage />} />
             <Route path="tables" element={<TablesPage />} />

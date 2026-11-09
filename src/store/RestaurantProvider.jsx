@@ -7,8 +7,9 @@ import {
 } from 'react'
 import { fullMenu, menuCategories } from '../data/content'
 import { reservations as seedReservations, staff as seedStaffBase, tables as seedTables } from '../data/dashboard'
+import { lineUnitPrice, modifierGroupsForCategory } from '../data/modifiers'
 
-const STORAGE_KEY = 'maison-noir-store-v4'
+const STORAGE_KEY = 'maison-noir-store-v5'
 const HOUR = 60 * 60 * 1000
 const DAY = 24 * HOUR
 
@@ -53,6 +54,7 @@ function seedMenu() {
     tag: item.tag ?? '',
     image: item.image ?? categoryImages[item.categoryId],
     available: !(i % 11 === 7),
+    modifierGroups: modifierGroupsForCategory(item.categoryId),
   }))
 }
 
@@ -95,12 +97,14 @@ function seedOrders(menu, staff) {
       const m = pick()
       const existing = items.find((x) => x.menuId === m.id)
       if (existing) existing.qty += 1
-      else items.push({ menuId: m.id, name: m.name, price: m.price, qty: 1, notes: '' })
+      else items.push({ menuId: m.id, name: m.name, basePrice: m.price, price: m.price, qty: 1, notes: '', modifiers: [] })
     }
     return items
   }
 
-  // Historical (last 6 days) — all served
+  const payMethods = ['cash', 'card', 'card', 'card', 'mixed']
+
+  // Historical (last 6 days) — all served + paid
   for (let d = 6; d >= 1; d -= 1) {
     const count = 10 + Math.floor(rand() * 9)
     for (let i = 0; i < count; i += 1) {
@@ -116,6 +120,10 @@ function seedOrders(menu, staff) {
         waiterName: w.name.split(' ')[0],
         items: mkItems(2 + Math.floor(rand() * 5)),
         status: 'served',
+        paymentStatus: 'paid',
+        paymentMethod: payMethods[Math.floor(rand() * payMethods.length)],
+        tip: Math.floor(rand() * 3) * 5,
+        discount: rand() > 0.85 ? 10 : 0,
         createdAt: created,
         updatedAt: created + 50 * 60 * 1000,
         notes: '',
@@ -123,7 +131,7 @@ function seedOrders(menu, staff) {
     }
   }
 
-  // Today earlier — served
+  // Today earlier — served + paid
   for (let i = 0; i < 9; i += 1) {
     const w = waiters[Math.floor(rand() * waiters.length)]
     const created = now - (1.2 + rand() * 3) * HOUR
@@ -137,6 +145,10 @@ function seedOrders(menu, staff) {
       waiterName: w.name.split(' ')[0],
       items: mkItems(2 + Math.floor(rand() * 5)),
       status: 'served',
+      paymentStatus: 'paid',
+      paymentMethod: payMethods[Math.floor(rand() * payMethods.length)],
+      tip: Math.floor(rand() * 4) * 5,
+      discount: 0,
       createdAt: created,
       updatedAt: created + 45 * 60 * 1000,
       notes: '',
@@ -145,12 +157,12 @@ function seedOrders(menu, staff) {
 
   // Live now
   const live = [
-    { table: '4', status: 'preparing', mins: 12, n: 3, notes: 'No nuts on table 4', guest: 'Clara Dupont' },
-    { table: '8', status: 'new', mins: 2, n: 2, notes: '', guest: 'Marcus Chen' },
-    { table: '12', status: 'ready', mins: 24, n: 5, notes: 'Birthday — candle on dessert', guest: 'Elena Rossi' },
-    { table: '2', status: 'preparing', mins: 9, n: 4, notes: '', guest: 'Priya Shah' },
-    { table: '7', status: 'preparing', mins: 31, n: 1, notes: 'Guest in a hurry', guest: 'James Okonkwo' },
-    { table: '11', status: 'served', mins: 48, n: 6, notes: '', guest: 'Thomas Berg' },
+    { table: '4', status: 'preparing', mins: 12, n: 3, notes: 'No nuts on table 4', guest: 'Clara Dupont', pay: 'unpaid' },
+    { table: '8', status: 'new', mins: 2, n: 2, notes: '', guest: 'Marcus Chen', pay: 'unpaid' },
+    { table: '12', status: 'ready', mins: 24, n: 5, notes: 'Birthday — candle on dessert', guest: 'Elena Rossi', pay: 'requested' },
+    { table: '2', status: 'preparing', mins: 9, n: 4, notes: '', guest: 'Priya Shah', pay: 'unpaid' },
+    { table: '7', status: 'preparing', mins: 31, n: 1, notes: 'Guest in a hurry', guest: 'James Okonkwo', pay: 'unpaid' },
+    { table: '11', status: 'served', mins: 48, n: 6, notes: '', guest: 'Thomas Berg', pay: 'unpaid' },
   ]
   live.forEach((l, i) => {
     const w = waiters[i % waiters.length]
@@ -165,6 +177,10 @@ function seedOrders(menu, staff) {
       waiterName: w.name.split(' ')[0],
       items: mkItems(l.n),
       status: l.status,
+      paymentStatus: l.pay,
+      paymentMethod: null,
+      tip: 0,
+      discount: 0,
       createdAt: created,
       updatedAt: created,
       notes: l.notes,
@@ -179,7 +195,7 @@ function buildSeed() {
   const staff = seedStaff()
   const { orders, nextOrderId } = seedOrders(menu, staff)
   return {
-    version: 4,
+    version: 5,
     menu,
     staff,
     orders,
@@ -192,6 +208,7 @@ function buildSeed() {
       hours: 'Tue–Sat · 18:00–23:00',
       currency: 'USD',
       currencySymbol: '$',
+      serviceRate: 0.125,
     },
   }
 }
@@ -202,7 +219,7 @@ function loadState() {
     const raw = window.localStorage.getItem(STORAGE_KEY)
     if (!raw) return buildSeed()
     const parsed = JSON.parse(raw)
-    if (parsed?.version !== 4) return buildSeed()
+    if (parsed?.version !== 5) return buildSeed()
     return parsed
   } catch {
     return buildSeed()
@@ -247,6 +264,10 @@ function reducer(state, action) {
       const order = {
         id,
         status: 'new',
+        paymentStatus: 'unpaid',
+        paymentMethod: null,
+        tip: 0,
+        discount: 0,
         createdAt: now,
         updatedAt: now,
         notes: '',
@@ -347,10 +368,21 @@ export function useRestaurant() {
 /* ---------- derived helpers ---------- */
 
 export const OPEN_STATUSES = ['new', 'preparing', 'ready']
+export const KITCHEN_STATUSES = ['new', 'preparing', 'ready']
 export const LATE_AFTER_MIN = 20
 
 export function orderTotal(order) {
-  return order.items.reduce((sum, it) => sum + it.price * it.qty, 0)
+  return (order.items ?? []).reduce((sum, it) => sum + lineUnitPrice(it) * it.qty, 0)
+}
+
+export function billTotals(order, serviceRate = 0.125) {
+  const subtotal = orderTotal(order)
+  const discount = Number(order.discount) || 0
+  const tip = Number(order.tip) || 0
+  const taxable = Math.max(0, subtotal - discount)
+  const service = Math.round(taxable * serviceRate)
+  const total = taxable + service + tip
+  return { subtotal, discount, tip, service, total }
 }
 
 export function orderItemCount(order) {
@@ -446,13 +478,25 @@ export function useDerived() {
     const hours = Object.keys(hourly).map(Number).sort((a, b) => a - b)
     const hourlyCovers = hours.map((h) => ({ hour: `${String(h).padStart(2, '0')}:00`, covers: hourly[h] }))
 
-    // Top sellers today
+    // Top / bottom sellers today
     const soldMap = {}
+    const soldRevenue = {}
     todayOrders.forEach((o) =>
       o.items.forEach((it) => {
         soldMap[it.menuId] = (soldMap[it.menuId] ?? 0) + it.qty
+        soldRevenue[it.menuId] = (soldRevenue[it.menuId] ?? 0) + lineUnitPrice(it) * it.qty
       }),
     )
+    const dishRank = Object.entries(soldMap)
+      .map(([menuId, qty]) => ({
+        menuId,
+        qty,
+        revenue: soldRevenue[menuId] ?? 0,
+        name: state.menu.find((m) => m.id === menuId)?.name ?? menuId,
+      }))
+      .sort((a, b) => b.qty - a.qty)
+    const topDishes = dishRank.slice(0, 8)
+    const bottomDishes = [...dishRank].reverse().slice(0, 5)
 
     // Table status
     const tableStatus = {}
@@ -472,6 +516,33 @@ export function useDerived() {
       w.revenue += orderTotal(o)
     })
 
+    // Payments
+    const unpaidOrders = orders.filter(
+      (o) => o.status !== 'cancelled' && (o.paymentStatus === 'unpaid' || o.paymentStatus === 'requested'),
+    )
+    const paidToday = todayOrders.filter((o) => o.paymentStatus === 'paid')
+    const paymentMixMap = { cash: 0, card: 0, mixed: 0 }
+    let tipsToday = 0
+    let discountsToday = 0
+    paidToday.forEach((o) => {
+      const method = o.paymentMethod || 'card'
+      if (paymentMixMap[method] != null) paymentMixMap[method] += billTotals(o).total
+      else paymentMixMap.card += billTotals(o).total
+      tipsToday += Number(o.tip) || 0
+      discountsToday += Number(o.discount) || 0
+    })
+    const paymentMix = Object.entries(paymentMixMap).map(([name, value], i) => ({
+      name: name[0].toUpperCase() + name.slice(1),
+      value,
+      color: ['#245A4F', '#4F8A7A', '#C4A484'][i],
+    }))
+
+    const avgTicket = todayOrders.length ? Math.round(revenueToday / todayOrders.length) : 0
+    const peakHour = hourlyCovers.reduce(
+      (best, row) => (row.covers > (best?.covers ?? -1) ? row : best),
+      null,
+    )
+
     const pendingReservations = state.reservations.filter((r) => r.status === 'pending').length
     const tonightReservations = state.reservations.filter((r) => r.date === 'Tonight').length
 
@@ -488,8 +559,16 @@ export function useDerived() {
       categoryMix,
       hourlyCovers,
       soldMap,
+      topDishes,
+      bottomDishes,
       tableStatus,
       waiterStats,
+      unpaidOrders,
+      paymentMix,
+      tipsToday,
+      discountsToday,
+      avgTicket,
+      peakHour,
       pendingReservations,
       tonightReservations,
     }

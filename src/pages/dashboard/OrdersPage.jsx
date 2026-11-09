@@ -14,8 +14,10 @@ import {
   UtensilsCrossed,
   XCircle,
 } from 'lucide-react'
-import { orderStatusFlow, orderStatusStyles } from '../../data/dashboard'
+import { orderStatusFlow, orderStatusStyles, paymentStatusStyles } from '../../data/dashboard'
+import { formatModifiers, lineUnitPrice } from '../../data/modifiers'
 import {
+  billTotals,
   effectiveStatus,
   minutesAgo,
   orderItemCount,
@@ -260,6 +262,7 @@ export default function OrdersPage() {
         restaurant={state.settings}
         onClose={() => setSelected(null)}
         onStatus={(s) => selectedOrder && setStatus(selectedOrder, s)}
+        onUpdate={(patch) => selectedOrder && actions.updateOrder(selectedOrder.id, patch)}
         onPrint={() => selectedOrder && printOrder(selectedOrder)}
       />
     </div>
@@ -319,10 +322,22 @@ function OrderMenu({ order, onView, onStatus, onPrint, onRemove }) {
   )
 }
 
-export function OrderDrawer({ order, waiter, restaurant, onClose, onStatus, onPrint, readOnly = false }) {
+export function OrderDrawer({ order, waiter, restaurant, onClose, onStatus, onUpdate, onPrint, readOnly = false }) {
   const now = Date.now()
   const st = order ? effectiveStatus(order, now) : null
   const next = order ? orderStatusFlow[orderStatusFlow.indexOf(order.status) + 1] : null
+  const pay = order ? paymentStatusStyles[order.paymentStatus] ?? paymentStatusStyles.unpaid : null
+  const bill = order ? billTotals(order) : null
+
+  const markPaid = (method) => {
+    onUpdate?.({
+      paymentStatus: 'paid',
+      paymentMethod: method,
+      tip: Number(order.tip) || 0,
+      discount: Number(order.discount) || 0,
+    })
+  }
+
   return (
     <Drawer
       open={Boolean(order)}
@@ -359,10 +374,15 @@ export function OrderDrawer({ order, waiter, restaurant, onClose, onStatus, onPr
     >
       {order ? (
         <div className="space-y-6">
-          <div className="flex items-center justify-between">
-            <span className={`rounded-full px-2.5 py-1 text-xs ${orderStatusStyles[st].className}`}>
-              {orderStatusStyles[st].label}
-            </span>
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="flex flex-wrap gap-2">
+              <span className={`rounded-full px-2.5 py-1 text-xs ${orderStatusStyles[st].className}`}>
+                {orderStatusStyles[st].label}
+              </span>
+              {pay ? (
+                <span className={`rounded-full px-2.5 py-1 text-xs ${pay.className}`}>{pay.label}</span>
+              ) : null}
+            </div>
             <span className="flex items-center gap-1.5 text-xs dash-muted">
               <Clock className="size-3.5" strokeWidth={1.75} /> {minutesAgo(order.createdAt, now)} min elapsed
             </span>
@@ -414,9 +434,12 @@ export function OrderDrawer({ order, waiter, restaurant, onClose, onStatus, onPr
                     <p className="font-medium">
                       <span className="tabular-nums dash-accent-text">{it.qty}×</span> {it.name}
                     </p>
+                    {it.modifiers?.length ? (
+                      <p className="text-xs dash-muted">{formatModifiers(it.modifiers)}</p>
+                    ) : null}
                     {it.notes ? <p className="text-xs dash-muted">“{it.notes}”</p> : null}
                   </div>
-                  <p className="shrink-0 tabular-nums">${it.price * it.qty}</p>
+                  <p className="shrink-0 tabular-nums">${lineUnitPrice(it) * it.qty}</p>
                 </li>
               ))}
             </ul>
@@ -432,10 +455,62 @@ export function OrderDrawer({ order, waiter, restaurant, onClose, onStatus, onPr
             </div>
           ) : null}
 
+          {!readOnly && order.paymentStatus !== 'paid' && order.status !== 'cancelled' ? (
+            <div className="space-y-3 rounded-xl p-3" style={{ background: 'var(--dash-surface-soft)' }}>
+              <p className="text-xs font-medium dash-muted">Bill & payment</p>
+              <div className="grid grid-cols-2 gap-2">
+                <label className="text-[11px] dash-muted">
+                  Discount $
+                  <input
+                    type="number"
+                    min="0"
+                    value={order.discount ?? 0}
+                    onChange={(e) => onUpdate?.({ discount: Math.max(0, Number(e.target.value) || 0) })}
+                    className="dash-input mt-1 h-9 w-full rounded-lg border-0 px-2 text-sm outline-none"
+                  />
+                </label>
+                <label className="text-[11px] dash-muted">
+                  Tip $
+                  <input
+                    type="number"
+                    min="0"
+                    value={order.tip ?? 0}
+                    onChange={(e) => onUpdate?.({ tip: Math.max(0, Number(e.target.value) || 0) })}
+                    className="dash-input mt-1 h-9 w-full rounded-lg border-0 px-2 text-sm outline-none"
+                  />
+                </label>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {order.paymentStatus !== 'requested' ? (
+                  <Button size="sm" variant="ghost" onClick={() => onUpdate?.({ paymentStatus: 'requested' })}>
+                    Request bill
+                  </Button>
+                ) : null}
+                <Button size="sm" onClick={() => markPaid('cash')}>
+                  <Banknote className="size-3.5" /> Cash
+                </Button>
+                <Button size="sm" onClick={() => markPaid('card')}>
+                  Card
+                </Button>
+                <Button size="sm" variant="ghost" onClick={() => markPaid('mixed')}>
+                  Mixed
+                </Button>
+              </div>
+            </div>
+          ) : null}
+
+          {order.paymentStatus === 'paid' ? (
+            <p className="rounded-xl px-3 py-2 text-xs dash-badge-emerald">
+              Paid{order.paymentMethod ? ` · ${order.paymentMethod}` : ''}
+            </p>
+          ) : null}
+
           <div className="space-y-1.5 border-t pt-4 text-sm" style={{ borderColor: 'var(--dash-border)' }}>
-            <Row label="Subtotal" value={`$${orderTotal(order)}`} />
-            <Row label="Service (12.5%)" value={`$${Math.round(orderTotal(order) * 0.125)}`} />
-            <Row label="Total" value={`$${Math.round(orderTotal(order) * 1.125)}`} strong />
+            <Row label="Subtotal" value={`$${bill.subtotal}`} />
+            {bill.discount > 0 ? <Row label="Discount" value={`−$${bill.discount}`} /> : null}
+            <Row label="Service (12.5%)" value={`$${bill.service}`} />
+            {bill.tip > 0 ? <Row label="Tip" value={`$${bill.tip}`} /> : null}
+            <Row label="Total" value={`$${bill.total}`} strong />
           </div>
 
           {restaurant?.name ? (

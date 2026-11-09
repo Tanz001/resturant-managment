@@ -1,6 +1,7 @@
 export const managerNav = [
   { id: 'overview', label: 'Overview', path: '/manager', icon: 'LayoutDashboard' },
   { id: 'orders', label: 'Orders', path: '/manager/orders', icon: 'UtensilsCrossed' },
+  { id: 'analytics', label: 'Analytics', path: '/manager/analytics', icon: 'ChartColumn' },
   { id: 'reservations', label: 'Reservations', path: '/manager/reservations', icon: 'CalendarDays' },
   { id: 'menu', label: 'Menu', path: '/manager/menu', icon: 'BookOpen' },
   { id: 'tables', label: 'Tables', path: '/manager/tables', icon: 'Armchair' },
@@ -234,7 +235,15 @@ export const orderStatusStyles = {
   cancelled: { label: 'Cancelled', className: 'dash-badge-rose' },
 }
 
+export const paymentStatusStyles = {
+  unpaid: { label: 'Unpaid', className: 'dash-badge-amber' },
+  requested: { label: 'Bill requested', className: 'dash-badge-sky' },
+  paid: { label: 'Paid', className: 'dash-badge-emerald' },
+  void: { label: 'Void', className: 'dash-badge-rose' },
+}
+
 export const orderStatusFlow = ['new', 'preparing', 'ready', 'served']
+export const kitchenStatusFlow = ['new', 'preparing', 'ready']
 
 export const staffRoles = ['Waiter', 'Host', 'Head chef', 'Sous chef', 'Line cook', 'Bartender', 'Manager']
 export const staffShifts = ['Lunch', 'Evening', 'Double', 'Off']

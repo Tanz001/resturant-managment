@@ -1,4 +1,5 @@
-import { orderTotal } from '../../store/RestaurantProvider'
+import { formatModifiers, lineUnitPrice } from '../../data/modifiers'
+import { billTotals } from '../../store/RestaurantProvider'
 
 /** Opens a polished printable receipt in a new window. */
 export function printOrderReceipt(order, { restaurant, waiter } = {}) {
@@ -11,9 +12,8 @@ export function printOrderReceipt(order, { restaurant, waiter } = {}) {
     phone: '+33 1 00 00 00 00',
   }
 
-  const subtotal = orderTotal(order)
-  const service = Math.round(subtotal * 0.125)
-  const total = subtotal + service
+  const bill = billTotals(order)
+  const { subtotal, service, tip, discount, total } = bill
   const when = new Date(order.createdAt)
   const dateStr = when.toLocaleDateString(undefined, {
     weekday: 'long',
@@ -35,10 +35,11 @@ export function printOrderReceipt(order, { restaurant, waiter } = {}) {
       <tr>
         <td class="item">
           <div class="item-name">${escapeHtml(it.name)}</div>
+          ${it.modifiers?.length ? `<div class="item-note">${escapeHtml(formatModifiers(it.modifiers))}</div>` : ''}
           ${it.notes ? `<div class="item-note">${escapeHtml(it.notes)}</div>` : ''}
         </td>
         <td class="qty">${it.qty}</td>
-        <td class="price">$${(it.price * it.qty).toFixed(2)}</td>
+        <td class="price">$${(lineUnitPrice(it) * it.qty).toFixed(2)}</td>
       </tr>`,
     )
     .join('')
@@ -259,8 +260,11 @@ export function printOrderReceipt(order, { restaurant, waiter } = {}) {
 
     <div class="totals">
       <div class="row muted"><span>Subtotal</span><span>$${subtotal.toFixed(2)}</span></div>
+      ${discount > 0 ? `<div class="row muted"><span>Discount</span><span>−$${discount.toFixed(2)}</span></div>` : ''}
       <div class="row muted"><span>Service 12.5%</span><span>$${service.toFixed(2)}</span></div>
+      ${tip > 0 ? `<div class="row muted"><span>Tip</span><span>$${tip.toFixed(2)}</span></div>` : ''}
       <div class="row grand"><span>Total</span><span>$${total.toFixed(2)}</span></div>
+      ${order.paymentStatus === 'paid' ? `<div class="row muted" style="margin-top:8px"><span>Paid</span><span>${escapeHtml(order.paymentMethod || 'yes')}</span></div>` : ''}
     </div>
 
     ${

@@ -78,6 +78,9 @@ export default function Footer() {
               <Link to="/t/4" className="hover:text-ivory">
                 Guest QR demo (Table 4)
               </Link>
+              <Link to="/kitchen" className="hover:text-ivory">
+                Kitchen display
+              </Link>
               <a
                 href="https://instagram.com"
                 target="_blank"

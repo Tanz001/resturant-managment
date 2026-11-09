@@ -1,12 +1,14 @@
 import { Link, Navigate, useParams } from 'react-router-dom'
-import { CheckCircle2, Clock, Plus } from 'lucide-react'
-import { orderStatusStyles } from '../../data/dashboard'
-import { effectiveStatus, minutesAgo, orderTotal, useRestaurant } from '../../store/RestaurantProvider'
-import { Button } from '../../components/dashboard/ui'
+import { CheckCircle2, Clock, Plus, Receipt } from 'lucide-react'
+import { orderStatusStyles, paymentStatusStyles } from '../../data/dashboard'
+import { formatModifiers, lineUnitPrice } from '../../data/modifiers'
+import { billTotals, effectiveStatus, minutesAgo, useRestaurant } from '../../store/RestaurantProvider'
+import { Button, useToast } from '../../components/dashboard/ui'
 
 export default function GuestOrderConfirmPage() {
   const { tableId, orderId } = useParams()
-  const { state } = useRestaurant()
+  const { state, actions } = useRestaurant()
+  const { toast, ToastView } = useToast()
   const order = state.orders.find((o) => String(o.id) === String(orderId))
   const table = state.tables.find((t) => String(t.id) === String(tableId))
 
@@ -17,12 +19,18 @@ export default function GuestOrderConfirmPage() {
   const now = Date.now()
   const st = effectiveStatus(order, now)
   const style = orderStatusStyles[st] ?? orderStatusStyles.new
-  const subtotal = orderTotal(order)
-  const service = Math.round(subtotal * 0.125)
-  const total = subtotal + service
+  const pay = paymentStatusStyles[order.paymentStatus] ?? paymentStatusStyles.unpaid
+  const bill = billTotals(order)
+
+  const requestBill = () => {
+    if (order.paymentStatus === 'paid') return
+    actions.updateOrder(order.id, { paymentStatus: 'requested' })
+    toast('Bill requested — a waiter will bring it', 'success')
+  }
 
   return (
     <div className="dashboard-app min-h-dvh" data-theme="light">
+      <ToastView />
       <header
         className="border-b"
         style={{ background: 'var(--dash-bg)', borderColor: 'var(--dash-border)' }}
@@ -49,12 +57,15 @@ export default function GuestOrderConfirmPage() {
         </div>
 
         <div className="dash-card mt-8 space-y-4 p-5">
-          <div className="flex items-center justify-between gap-3">
+          <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
               <p className="text-xs dash-muted">Order</p>
               <p className="text-lg font-semibold tabular-nums">#{order.id}</p>
             </div>
-            <span className={`rounded-full px-2.5 py-1 text-[11px] ${style.className}`}>{style.label}</span>
+            <div className="flex flex-wrap gap-2">
+              <span className={`rounded-full px-2.5 py-1 text-[11px] ${style.className}`}>{style.label}</span>
+              <span className={`rounded-full px-2.5 py-1 text-[11px] ${pay.className}`}>{pay.label}</span>
+            </div>
           </div>
 
           <div className="grid grid-cols-2 gap-3 text-sm">
@@ -75,10 +86,15 @@ export default function GuestOrderConfirmPage() {
                 className="flex justify-between gap-3 py-2.5"
                 style={{ borderColor: 'var(--dash-border-soft)' }}
               >
-                <span className="min-w-0 truncate">
-                  <span className="dash-accent-text tabular-nums">{it.qty}×</span> {it.name}
+                <span className="min-w-0">
+                  <span className="block truncate">
+                    <span className="dash-accent-text tabular-nums">{it.qty}×</span> {it.name}
+                  </span>
+                  {it.modifiers?.length ? (
+                    <span className="block text-[11px] dash-muted">{formatModifiers(it.modifiers)}</span>
+                  ) : null}
                 </span>
-                <span className="shrink-0 tabular-nums">${it.price * it.qty}</span>
+                <span className="shrink-0 tabular-nums">${lineUnitPrice(it) * it.qty}</span>
               </li>
             ))}
           </ul>
@@ -86,15 +102,15 @@ export default function GuestOrderConfirmPage() {
           <div className="space-y-1 border-t pt-3 text-sm" style={{ borderColor: 'var(--dash-border)' }}>
             <div className="flex justify-between dash-muted">
               <span>Subtotal</span>
-              <span className="tabular-nums">${subtotal}</span>
+              <span className="tabular-nums">${bill.subtotal}</span>
             </div>
             <div className="flex justify-between dash-muted">
               <span>Service 12.5%</span>
-              <span className="tabular-nums">${service}</span>
+              <span className="tabular-nums">${bill.service}</span>
             </div>
             <div className="flex justify-between font-semibold">
               <span>Total</span>
-              <span className="tabular-nums">${total}</span>
+              <span className="tabular-nums">${bill.total}</span>
             </div>
           </div>
 
@@ -104,8 +120,20 @@ export default function GuestOrderConfirmPage() {
         </div>
 
         <div className="mt-6 flex flex-col gap-2">
+          {order.paymentStatus !== 'paid' ? (
+            <Button
+              className="w-full"
+              size="lg"
+              variant={order.paymentStatus === 'requested' ? 'ghost' : 'primary'}
+              disabled={order.paymentStatus === 'requested'}
+              onClick={requestBill}
+            >
+              <Receipt className="size-4" />
+              {order.paymentStatus === 'requested' ? 'Bill requested' : 'Request bill'}
+            </Button>
+          ) : null}
           <Link to={`/t/${table.id}`}>
-            <Button className="w-full" size="lg">
+            <Button className="w-full" size="lg" variant={order.paymentStatus === 'paid' ? 'primary' : 'ghost'}>
               <Plus className="size-4" /> Order more
             </Button>
           </Link>

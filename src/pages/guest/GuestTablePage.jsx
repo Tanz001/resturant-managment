@@ -23,6 +23,7 @@ import {
   Wheat,
 } from 'lucide-react'
 import { menuCategories } from '../../data/content'
+import { formatModifiers } from '../../data/modifiers'
 import { useRestaurant } from '../../store/RestaurantProvider'
 import {
   Button,
@@ -33,6 +34,7 @@ import {
   Textarea,
   useToast,
 } from '../../components/dashboard/ui'
+import ModifierSheet from '../../components/ModifierSheet'
 
 const categoryIcons = {
   all: Layers,
@@ -65,6 +67,7 @@ export default function GuestTablePage() {
   const [basketOpen, setBasketOpen] = useState(false)
   const [justAdded, setJustAdded] = useState(null)
   const [submitting, setSubmitting] = useState(false)
+  const [customize, setCustomize] = useState(null)
 
   const menu = useMemo(() => {
     const q = query.trim().toLowerCase()
@@ -78,23 +81,50 @@ export default function GuestTablePage() {
     })
   }, [state.menu, category, query])
 
-  const qtyOf = (id) => basket.find((b) => b.menuId === id)?.qty ?? 0
+  const qtyOf = (id) => basket.filter((b) => b.menuId === id).reduce((s, b) => s + b.qty, 0)
   const total = basket.reduce((s, b) => s + b.price * b.qty, 0)
   const count = basket.reduce((s, b) => s + b.qty, 0)
 
-  const add = (m) => {
-    if (!m.available) return
+  const pushLine = (line) => {
     setBasket((prev) => {
-      const ex = prev.find((b) => b.menuId === m.id)
-      if (ex) return prev.map((b) => (b.menuId === m.id ? { ...b, qty: b.qty + 1 } : b))
-      return [...prev, { menuId: m.id, name: m.name, price: m.price, qty: 1, notes: '', image: m.image }]
+      const key = line.lineKey ?? line.menuId
+      const ex = prev.find((b) => (b.lineKey ?? b.menuId) === key)
+      if (ex) {
+        return prev.map((b) =>
+          (b.lineKey ?? b.menuId) === key ? { ...b, qty: b.qty + line.qty } : b,
+        )
+      }
+      return [...prev, line]
     })
-    setJustAdded(m.id)
+    setJustAdded(line.menuId)
     setTimeout(() => setJustAdded(null), 500)
   }
-  const dec = (id) =>
-    setBasket((prev) => prev.map((b) => (b.menuId === id ? { ...b, qty: b.qty - 1 } : b)).filter((b) => b.qty > 0))
-  const remove = (id) => setBasket((prev) => prev.filter((b) => b.menuId !== id))
+
+  const add = (m) => {
+    if (!m.available) return
+    if (m.modifierGroups?.length) {
+      setCustomize(m)
+      return
+    }
+    pushLine({
+      menuId: m.id,
+      name: m.name,
+      basePrice: m.price,
+      price: m.price,
+      qty: 1,
+      notes: '',
+      modifiers: [],
+      image: m.image,
+      lineKey: m.id,
+    })
+  }
+  const dec = (key) =>
+    setBasket((prev) =>
+      prev
+        .map((b) => ((b.lineKey ?? b.menuId) === key ? { ...b, qty: b.qty - 1 } : b))
+        .filter((b) => b.qty > 0),
+    )
+  const remove = (key) => setBasket((prev) => prev.filter((b) => (b.lineKey ?? b.menuId) !== key))
 
   const send = () => {
     if (!table) return
@@ -108,9 +138,10 @@ export default function GuestTablePage() {
       customerName: customerName.trim(),
       waiterId: 'guest-qr',
       waiterName: 'QR Guest',
-      items: basket.map(({ image: _image, ...b }) => b),
+      items: basket.map(({ image: _image, lineKey: _lk, ...b }) => b),
       notes: orderNotes.trim(),
       source: 'qr',
+      paymentStatus: 'unpaid',
     })
     try {
       sessionStorage.setItem(
@@ -348,9 +379,11 @@ export default function GuestTablePage() {
           </div>
 
           <ul className="space-y-2">
-            {basket.map((b) => (
+            {basket.map((b) => {
+              const key = b.lineKey ?? b.menuId
+              return (
               <li
-                key={b.menuId}
+                key={key}
                 className="flex items-start gap-3 rounded-xl p-2"
                 style={{ background: 'var(--dash-surface-soft)' }}
               >
@@ -362,27 +395,31 @@ export default function GuestTablePage() {
                     <p className="truncate text-sm font-medium">{b.name}</p>
                     <p className="shrink-0 text-sm tabular-nums">${b.price * b.qty}</p>
                   </div>
+                  {b.modifiers?.length ? (
+                    <p className="text-[11px] dash-muted">{formatModifiers(b.modifiers)}</p>
+                  ) : null}
                   {b.notes ? <p className="text-[11px] dash-accent-text">“{b.notes}”</p> : null}
                   <div className="mt-1.5 flex items-center gap-1">
                     <div className="dash-chip flex items-center rounded-md">
-                      <button type="button" onClick={() => dec(b.menuId)} className="dash-icon-btn p-1">
+                      <button type="button" onClick={() => dec(key)} className="dash-icon-btn p-1">
                         <Minus className="size-3" />
                       </button>
                       <span className="w-5 text-center text-xs font-semibold tabular-nums">{b.qty}</span>
-                      <button type="button" onClick={() => add(state.menu.find((m) => m.id === b.menuId))} className="dash-icon-btn p-1">
+                      <button type="button" onClick={() => pushLine({ ...b, qty: 1 })} className="dash-icon-btn p-1">
                         <Plus className="size-3" />
                       </button>
                     </div>
                     <button type="button" onClick={() => setNoteFor(b)} className="dash-icon-btn rounded-md p-1" aria-label="Note">
                       <StickyNote className="size-3.5" />
                     </button>
-                    <button type="button" onClick={() => remove(b.menuId)} className="dash-icon-btn ml-auto rounded-md p-1" aria-label="Remove">
+                    <button type="button" onClick={() => remove(key)} className="dash-icon-btn ml-auto rounded-md p-1" aria-label="Remove">
                       <Trash2 className="size-3.5" />
                     </button>
                   </div>
                 </div>
               </li>
-            ))}
+              )
+            })}
           </ul>
 
           <Input
@@ -432,16 +469,30 @@ export default function GuestTablePage() {
             <Textarea
               rows={3}
               autoFocus
-              value={basket.find((b) => b.menuId === noteFor.menuId)?.notes ?? ''}
+              value={
+                basket.find((b) => (b.lineKey ?? b.menuId) === (noteFor.lineKey ?? noteFor.menuId))
+                  ?.notes ?? ''
+              }
               onChange={(e) =>
                 setBasket((prev) =>
-                  prev.map((b) => (b.menuId === noteFor.menuId ? { ...b, notes: e.target.value } : b)),
+                  prev.map((b) =>
+                    (b.lineKey ?? b.menuId) === (noteFor.lineKey ?? noteFor.menuId)
+                      ? { ...b, notes: e.target.value }
+                      : b,
+                  ),
                 )
               }
             />
           </Field>
         ) : null}
       </Modal>
+
+      <ModifierSheet
+        open={Boolean(customize)}
+        item={customize}
+        onClose={() => setCustomize(null)}
+        onConfirm={pushLine}
+      />
     </div>
   )
 }

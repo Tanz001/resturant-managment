@@ -273,6 +273,7 @@ export default function TablesPage() {
         restaurant={state.settings}
         onClose={() => setSelected(null)}
         onStatus={(s) => selectedOrder && actions.setOrderStatus(selectedOrder.id, s)}
+        onUpdate={(patch) => selectedOrder && actions.updateOrder(selectedOrder.id, patch)}
         onPrint={() =>
           selectedOrder &&
           printOrderReceipt(selectedOrder, {
